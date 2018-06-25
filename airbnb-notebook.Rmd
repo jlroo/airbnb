@@ -1,10 +1,8 @@
 ---
-title: "Chicago Airbnb Analysis"
+title: "Airbnb Chicago Market Analysis"
 author: "Jose Luis Rodriguez"
-date: "June 13, 2018"
+date: "June 24, 2018"
 output:
-  md_document:
-    variant: markdown_github
   html_notebook: default
 subtitle: CME Group Foundation Business Analytics Lab
 ---
@@ -125,7 +123,7 @@ if(!require("tidyverse")){
 
 ```{r}
 
-airbnb <- read_csv("data/2015/airbnb.csv")
+airbnb <- read_csv("data/2015/airbnb_raw.csv")
 
 ```
 
