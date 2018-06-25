@@ -1,7 +1,7 @@
 Airbnb Chicago Market Analysis
 ==============================
 
-### RNotebook Analysis: [financial-data-notebook](../master/airbnb-notebook.Rmd)
+### RNotebook Analysis: [airbnb-data-notebook](../master/airbnb-notebook.Rmd)
 -----
 
 ### Introduction
