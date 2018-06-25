@@ -3,6 +3,8 @@ title: "Chicago Airbnb Analysis"
 author: "Jose Luis Rodriguez"
 date: "June 13, 2018"
 output:
+  md_document:
+    variant: markdown_github
   html_notebook: default
 subtitle: CME Group Foundation Business Analytics Lab
 ---
@@ -99,6 +101,8 @@ We are going to use tidyverse a collection of R packages designed for data scien
 
 ```{r, echo = FALSE}
 
+options(scipen = 9999)
+
 # Here we are checking if the package is installed
 if(!require("tidyverse")){
   
@@ -187,9 +191,10 @@ colnames(airbnb)[66:92]
 ### Select only columns related to url links
 
 ```{r}
+
 airbnb_urls <- select(airbnb, contains("url"))
 ulr_columns <- colnames(airbnb_urls)
-airbnb_urls <- add_column(airbnb_urls, airbnb_id)
+airbnb_urls <- add_column(airbnb_urls, airbnb_id, .before = 1)
 
 ```
 
@@ -208,7 +213,7 @@ text_columns <- c("host_name","name","amenities", "experiences_offered",
 
 airbnb_nlp <- select(airbnb, text_columns)
 
-airbnb_nlp <- add_column(airbnb_nlp, airbnb_id)
+airbnb_nlp <- add_column(airbnb_nlp, airbnb_id, .before = 1)
 
 ```
 
@@ -228,7 +233,7 @@ location_columns <- c("zipcode", "latitude", "longitude", "city", "state",
 
 airbnb_loc <- select(airbnb, location_columns)
 
-airbnb_loc <- add_column(airbnb_loc, airbnb_id)
+airbnb_loc <- add_column(airbnb_loc, airbnb_id, .before = 1)
 
 ```
 
@@ -258,13 +263,12 @@ head(airbnb_clean)
 ### Save the new dataset for reference and later use
 
 ```{r}
+
 write_csv(airbnb_urls, "data/2015/airbnb_urls.csv")
 
 write_csv(airbnb_nlp, "data/2015/airbnb_nlp.csv")
 
 write_csv(airbnb_loc, "data/2015/airbnb_loc.csv")
-
-write_csv(airbnb_clean, "data/2015/airbnb_clean.csv")
 
 ```
 
@@ -276,83 +280,177 @@ write_csv(airbnb_clean, "data/2015/airbnb_clean.csv")
 
 
 ```{r}
-airbnb_clean <- read_csv("data/2015/airbnb_clean.csv")
 head(airbnb_clean)
 ```
 
 
 ```{r}
-room_type <- airbnb_clean$room_type %>% 
+airbnb_clean$room_type <- airbnb_clean$room_type %>% 
   tolower() %>% 
   str_replace_all(., " ", "_") %>% 
-  str_replace(., "home/apt","place")
+  str_replace(., "home/apt","place") %>% 
+  as_factor()
+```
 
-airbnb_clean$room_type <- as_factor(room_type)
+
+```{r}
+
+airbnb_clean$bed_type <- airbnb_clean$bed_type %>% 
+  tolower() %>% 
+  str_replace_all(., " ", "_") %>% 
+  str_replace(., "pull.*","sofa_bed") %>% 
+  str_replace(., "real_.*","bed") %>% 
+  as_factor()
 
 ```
 
 
 ```{r}
 
-# unique(airbnb_clean$bed_type)
-bed_type <- airbnb_clean$bed_type %>% 
-  tolower() %>% 
-  str_replace_all(., " ", "_") %>% 
-  str_replace(., "pull.*","sofa_bed") %>% 
-  str_replace(., "real_.*","bed")
+airbnb_clean$host_response_rate <- airbnb_clean$host_response_rate %>% 
+  str_remove(. , "%") %>% 
+  as.numeric()/100
 
-airbnb_clean$bed_type <- as_factor(bed_type)
+airbnb_clean$host_acceptance_rate <- airbnb_clean$host_acceptance_rate %>% 
+  str_remove(. , "%") %>% 
+  as.numeric()/100
 
 ```
 
+```{r}
+
+airbnb_clean$property_type  <- airbnb_clean$property_type %>%  
+  str_replace(., " \\& ", "_") %>% 
+  str_replace(., "\\/", "_") %>% 
+  as_factor()
+
+```
+
+```{r}
+airbnb_clean$price <- airbnb_clean$price %>% 
+  str_remove(., "\\$") %>% 
+  str_remove(., ",") %>% 
+  as.numeric()
+
+airbnb_clean$weekly_price <- airbnb_clean$weekly_price %>% 
+  str_remove(., "\\$") %>% 
+  str_remove(., ",") %>% 
+  as.numeric()
+
+airbnb_clean$monthly_price <- airbnb_clean$monthly_price %>% 
+  str_remove(., "\\$") %>% 
+  str_remove(., ",") %>% 
+  as.numeric()
+
+airbnb_clean$security_deposit <- airbnb_clean$security_deposit %>% 
+  str_remove(., "\\$") %>% 
+  str_remove(., ",") %>% 
+  as.numeric()
+
+airbnb_clean$extra_people <- airbnb_clean$extra_people %>% 
+  str_remove(., "\\$") %>% 
+  str_remove(., ",") %>% 
+  as.numeric()
+
+airbnb_clean <- rename(airbnb_clean, extra_people_fee = extra_people)
+
+airbnb_clean$cleaning_fee <- airbnb_clean$cleaning_fee %>% 
+  str_remove(., "\\$") %>% 
+  str_remove(., ",") %>% 
+  as.numeric()
+
+```
+
+
+```{r}
+
+updated_days <- function(item){
+  if(str_detect(item, "today"))
+        item <- 0
+  if(str_detect(item, "yesterday"))
+        item <- 1
+  if(str_detect(item, "never"))
+        item <- 9999
+  if(str_detect(item, "(a week ago)|(1 week ago)"))
+        item <- 7
+  if(str_detect(item, "days"))
+    item <- str_extract(item, "\\d+") %>% 
+      as.numeric()
+  if(str_detect(item, "weeks"))
+    item <- str_extract(item, "\\d+") %>% 
+      as.numeric() * 7
+  if(str_detect(item, "months"))
+    item <- str_extract(item, "\\d+") %>% 
+      as.numeric() * 30 
+  return(item)
+}
+
+
+calendar_updated_days <- map_dbl(airbnb_clean$calendar_updated, updated_days)
+
+airbnb_clean$calendar_updated_days <- if_else(calendar_updated_days %in% 9999, 
+         airbnb_clean$calendar_last_scraped - airbnb_clean$host_since, 
+         airbnb_clean$calendar_last_scraped - (airbnb_clean$calendar_last_scraped - calendar_updated_days)) %>% as.double()
+
+airbnb_clean$calendar_updated <- NULL
+
+```
+
+
+```{r}
+
+airbnb_clean$host_response_time <- airbnb_clean$host_response_time %>% 
+  str_replace("N/A", "NA") %>% 
+  str_replace(".*(an hour)",  "60") %>% 
+  str_replace(".*(few hours)",  as.character(60*12)) %>% 
+  str_replace(".*(a day)",  as.character(60*24)) %>% 
+  str_replace(".*(few days).*",  as.character(60*(5*24))) %>% 
+  factor(., levels = c("60", "720", "1440", "7200"))
+
+```
+
+### Change variable to correct datatypes
 
 ```{r}
 
 airbnb_clean <- airbnb_clean %>% 
   mutate(airbnb_id = as.character(airbnb_id)) %>% 
   mutate(host_id = as.character(host_id)) %>% 
+  mutate(property_type = as_factor(tolower(property_type))) %>% 
+  mutate(cancellation_policy = factor(tolower(cancellation_policy),
+                                      levels = c("flexible", "moderate", 
+                                                 "strict", "super_strict_30")))
+  
+```
+
+#### Change variable to logical (TRUE/FALSE)
+
+```{r}
+
+airbnb_clean <- airbnb_clean %>% 
   mutate(host_is_superhost = parse_logical(host_is_superhost)) %>% 
   mutate(host_has_profile_pic = parse_logical(host_has_profile_pic)) %>% 
   mutate(host_identity_verified = parse_logical(host_identity_verified)) %>% 
   mutate(is_location_exact = parse_logical(is_location_exact)) %>% 
-  mutate(property_type = as_factor(tolower(property_type)))
+  mutate(requires_license = parse_logical(requires_license)) %>% 
+  mutate(instant_bookable = parse_logical(instant_bookable)) %>% 
+  mutate(has_availability = parse_logical(has_availability)) %>% 
+  mutate(require_guest_profile_picture = parse_logical(require_guest_profile_picture)) %>% 
+  mutate(require_guest_phone_verification = parse_logical(require_guest_phone_verification))
 
 ```
+
 
 ```{r}
 head(airbnb_clean)
 ```
 
-```{r}
-summary(airbnb_clean)
-```
-
-
-```{r}
-
-host_response_rate <- airbnb_price$host_response_rate
-host_response_rate <- as.numeric(str_remove(host_response_rate, "%"))
-host_response_rate <- host_response_rate/100
-airbnb_price$host_response_rate <- host_response_rate
-
-```
-
-```{r}
-
-host_verifications <- str_remove(airbnb_price$host_verifications[1], "\\[")
-host_verifications <- str_remove(host_verifications, "\\]")
-host_verifications <- str_remove_all(host_verifications, "\'")
-host_verifications <- str_split(host_verifications, ",") 
-
-host_verifications
-
-```
 
 ### Save clean dataset with different name
 
 ```{r}
 
-write_csv(airbnb_price, "data/airbnb_price.csv")
+saveRDS(airbnb_clean, "data/2015/airbnb_clean.rds")
 
 ```
 
@@ -363,9 +461,20 @@ write_csv(airbnb_price, "data/airbnb_price.csv")
 -------------
 
 ```{r}
-summary(airbnb_price[1:10])
+
+airbnb_clean <- readRDS("data/2015/airbnb_clean.rds")
+
 ```
 
 ```{r}
-summary(airbnb_price[10:20])
+summary(airbnb_clean[1:18])
+```
+
+```{r}
+summary(airbnb_clean[19:37])
+```
+
+
+```{r}
+summary(airbnb_clean[38:54])
 ```
